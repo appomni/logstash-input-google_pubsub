@@ -21,6 +21,8 @@ require "logstash/namespace"
 
 require 'java'
 require 'logstash-input-google_pubsub_jars.rb'
+require 'zlib'
+require 'stringio'
 
 # This is a https://github.com/elastic/logstash[Logstash] input plugin for 
 # https://cloud.google.com/pubsub/[Google Pub/Sub]. The plugin can subscribe 
@@ -249,7 +251,9 @@ class LogStash::Inputs::GooglePubSub < LogStash::Inputs::Base
     @logger.debug("Pulling messages from sub '#{@subscription_id}'")
     handler = MessageReceiver.new do |message|
       # handle incoming message, then ack/nack the received message
-      data = message.getData().toStringUtf8()
+      byte_data = message.getData()
+      gz = Zlib::GzipReader.new(StringIO.new(byte_data))
+      data = gz.read.force_encoding("utf-8")
       @codec.decode(data) do |event|
         event.set("host", event.get("host") || @host)
         event.set("[@metadata][pubsub_message]", extract_metadata(message)) if @include_metadata
