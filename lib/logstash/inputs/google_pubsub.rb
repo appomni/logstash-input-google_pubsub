@@ -23,6 +23,7 @@ require 'java'
 require 'logstash-input-google_pubsub_jars.rb'
 require 'zlib'
 require 'stringio'
+require 'GzipCompress.jar'
 
 # This is a https://github.com/elastic/logstash[Logstash] input plugin for 
 # https://cloud.google.com/pubsub/[Google Pub/Sub]. The plugin can subscribe 
@@ -182,6 +183,7 @@ class LogStash::Inputs::GooglePubSub < LogStash::Inputs::Base
     end
   end
 
+  include_package 'com.appomni.gzip'
   include_package 'com.google.api.gax.batching'
   include_package 'com.google.api.gax.core'
   include_package 'com.google.auth.oauth2'
@@ -252,8 +254,7 @@ class LogStash::Inputs::GooglePubSub < LogStash::Inputs::Base
     handler = MessageReceiver.new do |message|
       # handle incoming message, then ack/nack the received message
       byte_data = message.getData()
-      gz = Zlib::GzipReader.new(StringIO.new(byte_data))
-      data = gz.read.force_encoding("utf-8")
+      data = Compression.decompress(byte_data.ToByteArray()).force_encoding("utf-8")
       @codec.decode(data) do |event|
         event.set("host", event.get("host") || @host)
         event.set("[@metadata][pubsub_message]", extract_metadata(message)) if @include_metadata
